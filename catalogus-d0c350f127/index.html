@@ -1603,6 +1603,13 @@ html,body{height:100%;margin:0;padding:0;background:#141019;
   background:none!important;width:auto!important;}
 .leaf .page{width:559px!important;height:794px!important;margin:0!important;
   zoom:var(--k);box-shadow:none!important;overflow:hidden;}
+/* DRAFT watermark. The web edition builds from the un-watermarked volume HTML, so
+   (unlike the PDF, which injects it at render time) the flipbook must carry SCHEMA
+   itself. Matches make_annuus_pdf's mark; pointer-events:none keeps links live. */
+.leaf .page::after, #mapcanvas .page::after{content:"SCHEMA";position:absolute;
+  top:50%;left:50%;transform:translate(-50%,-50%) rotate(-45deg);
+  font-family:Georgia,serif;font-size:64pt;letter-spacing:10px;
+  color:rgba(74,51,0,.12);white-space:nowrap;pointer-events:none;z-index:5;}
 /* flip-to-page lands on a 2-page spread; the target may be the right-hand page,
    so glow it on arrival — otherwise the eye reads the facing (previous) page */
 .xref-hit{animation:xrefpulse 1.9s ease-out;border-radius:4px;position:relative;z-index:2;}
