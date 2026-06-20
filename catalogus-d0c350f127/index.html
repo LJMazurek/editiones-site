@@ -1595,7 +1595,7 @@ html,body{height:100%;margin:0;padding:0;background:#141019;
 .stage{position:absolute;top:48px;left:0;right:0;bottom:0;display:flex;
   align-items:center;justify-content:center;overflow:hidden;
   background:radial-gradient(ellipse at center,#241c14 0%,#0f0b08 100%);}
-#flipbook{margin:0 auto;}
+#flipbook{margin:0 auto;visibility:hidden;}  /* revealed only once StPageFlip has mounted (no load flicker) */
 /* each StPageFlip leaf clips to its computed size; the .page inside is pinned to
    A5 px and scaled by --k so vector text stays crisp at any leaf size */
 .leaf{overflow:hidden;background:#FAFAF8;}
@@ -1603,6 +1603,11 @@ html,body{height:100%;margin:0;padding:0;background:#141019;
   background:none!important;width:auto!important;}
 .leaf .page{width:559px!important;height:794px!important;margin:0!important;
   zoom:var(--k);box-shadow:none!important;overflow:hidden;}
+/* flip-to-page lands on a 2-page spread; the target may be the right-hand page,
+   so glow it on arrival — otherwise the eye reads the facing (previous) page */
+.xref-hit{animation:xrefpulse 1.9s ease-out;border-radius:4px;position:relative;z-index:2;}
+@keyframes xrefpulse{0%,18%{box-shadow:0 0 0 3px #A4282A,0 0 16px 6px rgba(164,40,42,.55);}
+  100%{box-shadow:0 0 0 0 rgba(164,40,42,0);}}
 .hint{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);
   color:rgba(235,227,212,.45);font-size:11px;letter-spacing:.1em;z-index:6;
   pointer-events:none;}
@@ -1668,7 +1673,7 @@ html,body{height:100%;margin:0;padding:0;background:#141019;
     <div class="curaline">Cura Secretariatus Instituti editum</div>
     <div class="tantum">SODALIBUS TANTUM</div>
     <div class="meta">
-      catalogus@editiones-ibp.org
+      <a href="mailto:catalogus@editiones-ibp.org" style="color:inherit;text-decoration:none">catalogus@editiones-ibp.org</a>
     </div>
   </div>
 
@@ -4591,7 +4596,8 @@ const PORTRAIT_MAX = 760;
 const stage = document.querySelector('.stage');
 const el = document.getElementById('flipbook');
 const ind = document.getElementById('ind');
-let pf=null, curMode=null, curW=0;
+const LEAVES_HTML = el.innerHTML;   // pristine leaves — restored before every (re)build
+let pf=null, curMode=null, curW=0, lastW=-1;
 
 function fit(){
   const availW = stage.clientWidth - 20;
@@ -4607,24 +4613,32 @@ function setScale(pageW){
   document.documentElement.style.setProperty('--k', (pageW/559).toFixed(5));
 }
 function upd(){ try{ ind.textContent='p. '+(pf.getCurrentPageIndex()+1)+' / '+NPAGES; }catch(e){} }
+function flashTarget(id){ setTimeout(function(){ var el=document.getElementById(id); if(!el) return;
+  el.classList.remove('xref-hit'); void el.offsetWidth; el.classList.add('xref-hit');
+  setTimeout(function(){ el.classList.remove('xref-hit'); }, 1900); }, 110); }
 function build(){
   const f = fit();
   if (!f) return;                                    // stage not ready; ResizeObserver retries
-  if (pf && f.portrait===curMode && Math.abs(f.pageW-curW)<2) return;
-  curMode = f.portrait; curW = f.pageW;
+  // Rebuild ONLY on a real change: portrait-mode flip OR a WIDTH change. The mobile
+  // address bar shows/hides on scroll and changes HEIGHT only; rebuilding on that
+  // tore down the flip state mid-read (the "flicks backwards" bug), so width gates it.
+  if (pf && f.portrait===curMode && Math.abs(stage.clientWidth-lastW)<32) return;
+  curMode = f.portrait; curW = f.pageW; lastW = stage.clientWidth;
   const cur = pf ? pf.getCurrentPageIndex() : 0;
-  if (pf){ try{ pf.destroy(); }catch(e){} el.innerHTML=''; }
+  if (pf){ try{ pf.destroy(); }catch(e){} }
+  el.innerHTML = LEAVES_HTML;                         // restore pristine leaves — destroy()+loadFromHTML move/mangle them, and re-querying an emptied #flipbook gave 0 leaves (broken rebuild)
   setScale(f.pageW);
   pf = new St.PageFlip(el, {
     width:f.pageW, height:f.pageH,
     size:'fixed', usePortrait:f.portrait, showCover:true,
     drawShadow:true, flippingTime:680, maxShadowOpacity:0.5,
     mobileScrollSupport:false, useMouseEvents:true, clickEventForward:true,
-    swipeDistance:24,
+    swipeDistance:30,
   });
-  pf.loadFromHTML(document.querySelectorAll('#flipbook .leaf'));
+  pf.loadFromHTML(el.querySelectorAll('.leaf'));
   pf.on('flip', upd); pf.on('changeState', upd);
-  setTimeout(()=>{ if(cur>0){ try{ pf.turnToPage(cur);}catch(e){} } upd(); }, 90);
+  setTimeout(()=>{ if(cur>0){ try{ pf.turnToPage(cur);}catch(e){} } upd();
+    el.style.visibility='visible'; }, 80);             // reveal once mounted — kills the load flicker
 }
 let _rb;
 function rebuild(){ clearTimeout(_rb); _rb=setTimeout(build, 160); }
@@ -4649,18 +4663,29 @@ document.getElementById('fs').onclick=()=>{
 window.addEventListener('resize', rebuild);
 window.addEventListener('orientationchange',()=>setTimeout(rebuild,300));
 
-// links: internal #anchors flip the book; external links open out
+// Links vs flips. StPageFlip begins a page-flip on pointer/mouse/touch-DOWN, which
+// swallowed taps on links (the "sodales links don't work" + mobile mis-flip bug).
+// Stop the down-event reaching the engine whenever it lands on a link, so the link's
+// own click fires cleanly; the flip engine still works on every non-link area.
+['pointerdown','mousedown','touchstart'].forEach(function(ev){
+  document.addEventListener(ev, function(e){
+    if(e.target.closest && e.target.closest('a[href]')) e.stopPropagation();
+  }, true);
+});
+// internal #anchors flip the book (+ glow target); external links open out
 document.addEventListener('click',(e)=>{
   const a = e.target.closest && e.target.closest('a[href]');
   if(!a) return;
   const href = a.getAttribute('href')||'';
+  e.stopPropagation();
   if(href.charAt(0)==='#'){
-    e.preventDefault(); e.stopPropagation();
+    e.preventDefault();
     const id = href.slice(1);
-    if(id in ANCHORS && pf){ pf.turnToPage(ANCHORS[id]); upd(); }
+    if(id in ANCHORS && pf){ pf.turnToPage(ANCHORS[id]); upd(); flashTarget(id); }
     return;
   }
-  if(/^https?:|^mailto:/.test(href)){ a.target='_blank'; a.rel='noopener'; }
+  if(/^mailto:|^tel:/.test(href)){ e.preventDefault(); window.location.href = href; return; }
+  if(/^https?:/.test(href)){ e.preventDefault(); window.open(href,'_blank','noopener'); return; }
 }, true);
 
 // ---- zoomable map overlay (the first thing the HTML does that the PDF cannot) ----
