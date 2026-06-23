@@ -696,8 +696,12 @@
         measure();
       });
       setTimeout(function () {
-        gate.scrollIntoView({ block: "center", behavior: reduced ? "auto" : "smooth" });
-        clavis.focus({ preventScroll: true });
+        clavis.focus({ preventScroll: true });   // activate the field FIRST so the on-screen keyboard opens
+        var reveal = function () { clavis.scrollIntoView({ block: "center", behavior: reduced ? "auto" : "smooth" }); };
+        if (window.visualViewport) {              // THEN scroll, once the keyboard has resized the viewport
+          window.visualViewport.addEventListener("resize", reveal, { once: true });
+          setTimeout(reveal, 550);                // fallback (desktop / no keyboard)
+        } else { setTimeout(reveal, 360); }
       }, 80);
     } else {
       gate.classList.remove("open");
