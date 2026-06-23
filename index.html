@@ -696,7 +696,7 @@
         measure();
       });
       setTimeout(function () {
-        gate.scrollIntoView({ block: "nearest", behavior: reduced ? "auto" : "smooth" });
+        gate.scrollIntoView({ block: "center", behavior: reduced ? "auto" : "smooth" });
         clavis.focus({ preventScroll: true });
       }, 80);
     } else {
