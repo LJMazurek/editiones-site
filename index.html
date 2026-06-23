@@ -683,6 +683,14 @@
   var clavis = document.getElementById("clavis");
   var gatemsg = document.getElementById("gatemsg");
 
+  // SECURITY (PM): arriving at — or returning to — the gate is a LOGOUT. Clear the session flag and
+  // the field on every view (incl. bfcache back), so the Catalogus can never be re-entered, nor the
+  // gated folder reached, without typing the key afresh — protects a public computer left open.
+  addEventListener("pageshow", function () {
+    try { sessionStorage.removeItem("ibp_cat_ok"); } catch (e) {}
+    if (clavis) { clavis.value = ""; }
+  });
+
   function say(msg) {
     gatemsg.textContent = msg;
     gatemsg.classList.add("show");
@@ -721,6 +729,7 @@
       }).join("");
       if (hex === GATE.sha256) {
         gatemsg.classList.remove("show");
+        try { sessionStorage.setItem("ibp_cat_ok", GATE.sha256); } catch (e) {}   // session pass for the gated content
         if (GATE.target === "reveal") { reveal(); }
         else { location.href = GATE.target; }
       }
