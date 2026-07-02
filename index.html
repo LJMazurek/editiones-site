@@ -135,6 +135,27 @@
     transition: border-color 0.3s ease;
   }
   .gate input:focus { border-color: var(--gold-soft); }
+  /* show-password eye (PM 02 Jul 2026) — lives INSIDE the field; must not steal focus */
+  .gate .clavisbox { position: relative; width: min(16rem, 72vw); }
+  .gate .clavisbox input { width: 100%; padding: 0.55rem 2.5rem; }
+  .gate .clavistoggle {
+    position: absolute; top: 50%; right: 0.55rem; transform: translateY(-50%);
+    display: flex; align-items: center; justify-content: center;
+    width: 1.7rem; height: 1.7rem; padding: 0; margin: 0;
+    background: none; border: none; letter-spacing: 0; text-indent: 0;
+    color: var(--muted); opacity: 0.75; cursor: pointer;
+    transition: color 0.3s ease, opacity 0.3s ease;
+  }
+  .gate .clavistoggle:hover, .gate .clavistoggle:focus-visible {
+    color: var(--gold-bright); opacity: 1; background: none; border: none;
+  }
+  .gate .clavistoggle svg {
+    width: 18px; height: 18px; display: block;
+    fill: none; stroke: currentColor; stroke-width: 1.3;
+    stroke-linecap: round; stroke-linejoin: round;
+  }
+  .gate .clavistoggle .slash { visibility: hidden; }
+  .gate .clavistoggle.revealed .slash { visibility: visible; }
   .gate button {
     font-family: inherit;
     text-transform: uppercase;
@@ -454,7 +475,16 @@
     <p class="line">Catalogus Annuus</p>
     <p class="year">MMXXVII</p>
     <form class="gate" id="gate" hidden>
-      <input type="password" id="clavis" autocomplete="off" spellcheck="false" aria-label="Clavis">
+      <div class="clavisbox">
+        <input type="password" id="clavis" autocomplete="off" spellcheck="false" aria-label="Clavis">
+        <button type="button" class="clavistoggle" id="clavistoggle" aria-label="Clavem ostendere" title="Clavem ostendere" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M2.4 12s3.5-6.3 9.6-6.3S21.6 12 21.6 12s-3.5 6.3-9.6 6.3S2.4 12 2.4 12z"/>
+            <circle cx="12" cy="12" r="2.6"/>
+            <line class="slash" x1="4.8" y1="19.2" x2="19.2" y2="4.8"/>
+          </svg>
+        </button>
+      </div>
       <button type="submit">Aperire</button>
       <p class="gatemsg" id="gatemsg" role="status"></p>
     </form>
@@ -737,6 +767,24 @@
       }
       else { say("Clavis non ualet"); clavis.select(); }
     });
+  });
+})();
+/* show-password eye (PM 02 Jul 2026): toggles the field between password and text.
+   mousedown is prevented so the tap never steals focus — the mobile keyboard stays open. */
+(function () {
+  var inp = document.getElementById("clavis");
+  var tg = document.getElementById("clavistoggle");
+  if (!inp || !tg) return;
+  tg.addEventListener("mousedown", function (e) { e.preventDefault(); });
+  tg.addEventListener("click", function () {
+    var show = inp.type === "password";
+    inp.type = show ? "text" : "password";
+    tg.classList.toggle("revealed", show);
+    tg.setAttribute("aria-pressed", String(show));
+    var lbl = show ? "Clavem occultare" : "Clavem ostendere";
+    tg.setAttribute("aria-label", lbl);
+    tg.setAttribute("title", lbl);
+    inp.focus();
   });
 })();
 </script>
